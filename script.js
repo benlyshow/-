@@ -88,6 +88,9 @@ const autoReviewBtn = document.querySelector("#autoReviewBtn");
 const autoReviewNote = document.querySelector("#autoReviewNote");
 const scoringCard = document.querySelector(".scoring-card");
 const marketKeywordsEl = document.querySelector("#marketKeywords");
+const researchLinksEl = document.querySelector("#researchLinks");
+const copyKeywordsBtn = document.querySelector("#copyKeywordsBtn");
+const openResearchTabsBtn = document.querySelector("#openResearchTabsBtn");
 const competitorDensityEl = document.querySelector("#competitorDensity");
 const priceBandEl = document.querySelector("#priceBand");
 const reviewSignalEl = document.querySelector("#reviewSignal");
@@ -438,19 +441,110 @@ function generateMarketKeywords() {
     .join("\n");
 }
 
+function marketKeywordList() {
+  if (!marketKeywordsEl.value.trim()) {
+    marketKeywordsEl.value = generateMarketKeywords();
+  }
+  return Array.from(
+    new Set(
+      marketKeywordsEl.value
+        .split(/\n+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 12);
+}
+
+function encodeQuery(value) {
+  return encodeURIComponent(value.trim());
+}
+
+function buildResearchLinks(keywords = marketKeywordList()) {
+  const primary = keywords[0] || document.querySelector("#productName").value.trim() || "consumer product";
+  const reviewQuery = `${primary} reviews pain points`;
+  const trendQuery = `${primary} trend`;
+  const supplierQuery = `${primary} supplier wholesale`;
+  return [
+    {
+      name: "Amazon 竞品",
+      hint: "看价格带、主图、评价数",
+      url: `https://www.amazon.com/s?k=${encodeQuery(primary)}`,
+    },
+    {
+      name: "Google 差评痛点",
+      hint: "搜 reviews / pain points",
+      url: `https://www.google.com/search?q=${encodeQuery(reviewQuery)}`,
+    },
+    {
+      name: "TikTok 内容热度",
+      hint: "看短视频演示和话题",
+      url: `https://www.tiktok.com/search?q=${encodeQuery(primary)}`,
+    },
+    {
+      name: "Pinterest 风格趋势",
+      hint: "看造型、CMF、场景图",
+      url: `https://www.pinterest.com/search/pins/?q=${encodeQuery(trendQuery)}`,
+    },
+    {
+      name: "YouTube 评测",
+      hint: "看真实使用和抱怨点",
+      url: `https://www.youtube.com/results?search_query=${encodeQuery(reviewQuery)}`,
+    },
+    {
+      name: "Etsy 小众机会",
+      hint: "看手作、礼品、细分需求",
+      url: `https://www.etsy.com/search?q=${encodeQuery(primary)}`,
+    },
+    {
+      name: "Google Trends",
+      hint: "看需求上升或下降",
+      url: `https://trends.google.com/trends/explore?geo=US&q=${encodeQuery(primary)}`,
+    },
+    {
+      name: "AliExpress 供应",
+      hint: "看供应密度和低价带",
+      url: `https://www.aliexpress.com/wholesale?SearchText=${encodeQuery(supplierQuery)}`,
+    },
+  ];
+}
+
+function renderResearchLinks(links = buildResearchLinks()) {
+  if (!researchLinksEl) return;
+  researchLinksEl.innerHTML = links
+    .map(
+      (item) => `
+        <a class="research-link-card" href="${item.url}" target="_blank" rel="noopener noreferrer">
+          <strong>${item.name}</strong>
+          <span>${item.hint}</span>
+        </a>
+      `,
+    )
+    .join("");
+}
+
+function marketEvidenceCompleteness({ competitor, price, review, trend, evidenceText }) {
+  return [
+    competitor !== "unknown",
+    price !== "unknown",
+    review !== "unknown",
+    trend !== "unknown",
+    evidenceText.length > 24,
+  ].filter(Boolean).length;
+}
+
 function optionScore(value, scoreMap, fallback = 50) {
   return scoreMap[value] ?? fallback;
 }
 
 function marketResearchFromInputs() {
-  if (!marketKeywordsEl.value.trim()) {
-    marketKeywordsEl.value = generateMarketKeywords();
-  }
+  const keywordItems = marketKeywordList();
+  const researchLinks = buildResearchLinks(keywordItems);
   const competitor = competitorDensityEl.value;
   const price = priceBandEl.value;
   const review = reviewSignalEl.value;
   const trend = trendSignalEl.value;
   const evidenceText = painPointEvidenceEl.value.trim();
+  const completeness = marketEvidenceCompleteness({ competitor, price, review, trend, evidenceText });
 
   const competitorScore = optionScore(competitor, { low: 82, medium: 68, high: 38, unknown: 46 });
   const priceScore = optionScore(price, { healthy: 80, premium: 66, low: 42, unknown: 48 });
@@ -465,6 +559,8 @@ function marketResearchFromInputs() {
     price,
     review,
     trend,
+    completeness,
+    researchLinks,
     keywords: marketKeywordsEl.value.trim(),
     evidenceText,
     metrics: {
@@ -472,6 +568,7 @@ function marketResearchFromInputs() {
       价格带: price === "unknown" ? "待调研" : priceBandEl.options[priceBandEl.selectedIndex].textContent,
       评论信号: review === "unknown" ? "待调研" : reviewSignalEl.options[reviewSignalEl.selectedIndex].textContent,
       趋势信号: trend === "unknown" ? "待调研" : trendSignalEl.options[trendSignalEl.selectedIndex].textContent,
+      证据完整度: `${completeness}/5`,
     },
   };
 }
@@ -480,12 +577,14 @@ function renderMarket(result = null) {
   const metrics = document.querySelector("#marketMetrics");
   const insights = document.querySelector("#marketInsights");
   if (!result) {
-    metrics.innerHTML = ["竞品密度", "价格带", "评论信号", "趋势信号"]
+    renderResearchLinks();
+    metrics.innerHTML = ["竞品密度", "价格带", "评论信号", "趋势信号", "证据完整度"]
       .map((item) => `<div class="market-metric"><span>${item}</span><strong>待调研</strong></div>`)
       .join("");
-    insights.innerHTML = "<li>点击“生成调研框架并纳入评审”，系统会给出搜索关键词，并把你录入的市场证据计入总评。</li>";
+    insights.innerHTML = "<li>点击“生成调研框架并纳入评审”，系统会生成平台搜索入口、关键词和证据完整度；把你查到的价格带、差评痛点和趋势信号录入后会计入总评。</li>";
     return;
   }
+  renderResearchLinks(result.researchLinks);
 
   metrics.innerHTML = Object.entries(result.metrics)
     .map(([label, value]) => `<div class="market-metric"><span>${label}</span><strong>${value}</strong></div>`)
@@ -499,6 +598,7 @@ function renderMarket(result = null) {
   if (result.price === "low") notes.push("价格带偏低，可能难以覆盖广告、平台费和履约成本。");
   if (result.review === "clear-pain") notes.push("竞品差评痛点清晰，适合围绕这些痛点定义结构和主图卖点。");
   if (result.trend === "rising") notes.push("趋势信号较好，可以优先做内容测试和关键词页面验证。");
+  if (result.completeness < 3) notes.push("证据完整度偏低：建议至少补齐 3 项，包括竞品密度、价格带、评论痛点、趋势信号和差评摘录。");
   if (result.evidenceText) notes.push(`已记录机会摘录：${result.evidenceText.slice(0, 80)}${result.evidenceText.length > 80 ? "..." : ""}`);
   if (!notes.length) notes.push("市场信号偏中性，建议先完成平台关键词搜索和 5-10 个竞品差评样本。");
   insights.innerHTML = notes.map((item) => `<li>${item}</li>`).join("");
@@ -510,8 +610,31 @@ function runMarketReview() {
   document.querySelector("#evidenceReviews").checked = latestMarketResult.review === "clear-pain";
   document.querySelector("#evidenceMargin").checked = latestMarketResult.price === "healthy" || latestMarketResult.price === "premium";
   renderMarket(latestMarketResult);
-  marketReviewNote.textContent = "已生成调研关键词，并将当前市场证据纳入成功率和总评。";
+  marketReviewNote.textContent = `已生成 ${latestMarketResult.researchLinks.length} 个平台调研入口，证据完整度 ${latestMarketResult.completeness}/5，并已纳入成功率和总评。`;
   render();
+}
+
+async function copyMarketKeywords() {
+  const keywords = marketKeywordList().join("\n");
+  renderResearchLinks();
+  try {
+    await navigator.clipboard.writeText(keywords);
+    marketReviewNote.textContent = "关键词已复制。打开调研入口后，可直接粘贴到平台搜索框。";
+  } catch (error) {
+    marketKeywordsEl.focus();
+    marketKeywordsEl.select();
+    document.execCommand("copy");
+    marketReviewNote.textContent = "关键词已选中并尝试复制；如果浏览器拦截，请手动复制。";
+  }
+}
+
+function openCoreResearchTabs() {
+  const links = buildResearchLinks().slice(0, 4);
+  renderResearchLinks(links.concat(buildResearchLinks().slice(4)));
+  links.forEach((item, index) => {
+    setTimeout(() => window.open(item.url, "_blank", "noopener,noreferrer"), index * 80);
+  });
+  marketReviewNote.textContent = "已尝试打开 Amazon、Google、TikTok、Pinterest 四个核心入口；若浏览器拦截弹窗，可点击下方卡片逐个打开。";
 }
 
 function autoScoreFromInputs() {
@@ -877,10 +1000,14 @@ document.querySelectorAll("input, select").forEach((el) => {
 
 productBriefEl.addEventListener("input", () => {
   autoReviewNote.textContent = "简介已更新，点击自动评审可重新生成评分。";
+  renderResearchLinks();
 });
 runWorkflowBtn.addEventListener("click", runFullWorkflow);
 autoReviewBtn.addEventListener("click", runAutoReview);
 autoMarketBtn.addEventListener("click", runMarketReview);
+copyKeywordsBtn.addEventListener("click", copyMarketKeywords);
+openResearchTabsBtn.addEventListener("click", openCoreResearchTabs);
+marketKeywordsEl.addEventListener("input", () => renderResearchLinks());
 autoAppearanceBtn.addEventListener("click", runAppearanceReview);
 designIntentEl.addEventListener("input", () => {
   appearanceReviewNote.textContent = "设计意图已更新，点击评审外观设计可重新生成预审。";
