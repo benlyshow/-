@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>新品成功率评审工具</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Product Decision System</p>
+          <h1>新品成功率评审工具</h1>
+        </div>
+        <div class="header-actions">
+          <span class="status-pill">MVP 评审版</span>
+          <button class="secondary-button" id="resetBtn" type="button">
+            <span class="button-icon" aria-hidden="true">↺</span>
+            重置
+          </button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="input-panel" aria-label="新品评审输入">
+          <section class="tool-card upload-panel top-upload" aria-label="设计资料上传">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Step 01</p>
+                <h2>设计资料</h2>
+              </div>
+              <button class="secondary-button compact-button" id="clearFilesBtn" type="button">清空</button>
+            </div>
+            <label class="drop-zone" id="dropZone" for="assetUpload">
+              <input
+                id="assetUpload"
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt"
+              />
+              <span class="upload-mark" aria-hidden="true"></span>
+              <span class="drop-title">上传多张图片或文件</span>
+              <span class="drop-copy">用于评估外观、结构、包装、卖点表达和资料完整度。</span>
+              <span class="format-row">PNG / JPG / PDF / DOCX / PPTX / XLSX</span>
+            </label>
+            <div class="upload-stats" id="uploadStats">尚未上传资料</div>
+            <div class="asset-preview" id="assetPreview"></div>
+          </section>
+
+          <section class="tool-card setup-card" aria-label="产品基础信息">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Step 02</p>
+                <h2>产品简介</h2>
+              </div>
+            </div>
+            <div class="field-group compact">
+              <label for="productBrief">请用自然语言描述你的产品</label>
+              <textarea
+                id="productBrief"
+                rows="7"
+                placeholder="例如：这是一款面向短视频创作者的无线领夹麦上镜美化套件，包含肤色防风毛套、磁吸前盖和薄收纳盒。它不改变麦克风电子结构，只解决设备上镜突兀、收纳混乱和场景搭配的问题。"
+              >这是一款面向短视频创作者的无线领夹麦上镜美化套件，包含肤色防风毛套、磁吸前盖和薄收纳盒。它不改变麦克风电子结构，只解决设备上镜突兀、收纳混乱和场景搭配的问题。</textarea>
+            </div>
+            <div class="workflow-runner">
+              <button class="primary-action" id="runWorkflowBtn" type="button">
+                运行完整评审工作流
+              </button>
+              <div class="workflow-path" aria-label="评审流程">
+                <span>市场调研</span>
+                <span>外观预审</span>
+                <span>商业评审</span>
+                <span>综合结论</span>
+              </div>
+            </div>
+            <button class="secondary-button wide-secondary" id="autoReviewBtn" type="button">
+              自动评审成功率
+            </button>
+            <p class="auto-review-note" id="autoReviewNote">系统会根据产品简介、上传资料、品类和渠道自动填充评分因子。</p>
+          </section>
+
+          <section class="tool-card appearance-input-card" aria-label="外观设计预审输入">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Step 03</p>
+                <h2>外观设计预审</h2>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-group">
+                <label for="designStage">设计阶段</label>
+                <select id="designStage">
+                  <option value="concept">概念草图</option>
+                  <option value="render">效果图</option>
+                  <option value="cmf">CMF 方案</option>
+                  <option value="prototype">结构样机</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="styleTarget">风格目标</label>
+                <select id="styleTarget">
+                  <option value="friendly">友好体面</option>
+                  <option value="premium">高级极简</option>
+                  <option value="outdoor">可靠户外</option>
+                  <option value="home">家居融合</option>
+                  <option value="playful">轻松有趣</option>
+                </select>
+              </div>
+              <div class="field-group wide-field">
+                <label for="designIntent">外观设计意图</label>
+                <textarea
+                  id="designIntent"
+                  rows="5"
+                  placeholder="例如：希望产品看起来不显老，像旅行配饰而不是医疗设备；需要大按键、柔和圆角、挂绳连接点和清晰的正反面识别。"
+                >希望产品看起来不显老，像旅行配饰而不是医疗设备；需要大按键、柔和圆角、挂绳连接点和清晰的正反面识别。</textarea>
+              </div>
+            </div>
+            <button class="primary-action appearance-action" id="autoAppearanceBtn" type="button">
+              评审外观设计
+            </button>
+            <p class="auto-review-note" id="appearanceReviewNote">系统会基于图片资料、设计阶段、风格目标和设计意图生成外观预审。</p>
+          </section>
+
+          <section class="tool-card setup-card compact-setup" aria-label="基础销售设定">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Optional</p>
+                <h2>基础设定</h2>
+              </div>
+            </div>
+            <div class="field-group compact">
+              <label for="preset">评审模板</label>
+              <select id="preset">
+                <option value="custom">自定义产品</option>
+                <option value="creator-mic">无线领夹麦美化套件</option>
+                <option value="outdoor-kitchen">轻量露营厨房套件</option>
+                <option value="pet-travel">宠物出行饮水套件</option>
+                <option value="home-appliance-support">小家电周边收纳</option>
+                <option value="silver-kit">银发旅行安全套装</option>
+                <option value="silver-terminal">银发智能文旅终端</option>
+              </select>
+            </div>
+            <div class="field-grid">
+              <div class="field-group">
+                <label for="productName">产品名称</label>
+                <input id="productName" type="text" value="无线领夹麦上镜美化套件" />
+              </div>
+              <div class="field-group">
+                <label for="category">品类</label>
+                <select id="category">
+                  <option value="consumer-accessory">消费电子周边</option>
+                  <option value="electronics-accessory">电子设备周边</option>
+                  <option value="home-appliance">小家电/周边</option>
+                  <option value="outdoor">户外小产品</option>
+                  <option value="pet">宠物用品</option>
+                  <option value="travel">旅行用品</option>
+                  <option value="kitchen">厨房/餐厨</option>
+                  <option value="health-wellness">健康生活</option>
+                  <option value="baby-kids">母婴/儿童</option>
+                  <option value="senior-travel">银发旅行</option>
+                  <option value="soft-goods">软包/收纳</option>
+                </select>
+              </div>
+              <div class="field-group wide-field">
+                <label for="targetUser">目标用户</label>
+                <input id="targetUser" type="text" value="短视频创作者、直播卖家、访谈拍摄者" />
+              </div>
+              <div class="field-group">
+                <label for="channel">主销售渠道</label>
+                <select id="channel">
+                  <option value="amazon">Amazon</option>
+                  <option value="tiktok">TikTok Shop</option>
+                  <option value="etsy">Etsy</option>
+                  <option value="b2b">景区/旅行社 B2B</option>
+                  <option value="dtc">独立站</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-card market-card" aria-label="市场调研证据">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Research</p>
+                <h2>市场调研证据</h2>
+              </div>
+            </div>
+            <div class="field-group compact">
+              <label for="marketKeywords">建议调研关键词</label>
+              <textarea id="marketKeywords" rows="4" placeholder="点击生成调研关键词，或手动输入平台搜索词。"></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="field-group">
+                <label for="competitorDensity">竞品密度</label>
+                <select id="competitorDensity">
+                  <option value="unknown">未调研</option>
+                  <option value="low">低：结果少且头部弱</option>
+                  <option value="medium">中：有竞品但仍有空位</option>
+                  <option value="high">高：红海/价格战</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="priceBand">价格带</label>
+                <select id="priceBand">
+                  <option value="unknown">未调研</option>
+                  <option value="low">偏低：难覆盖广告和履约</option>
+                  <option value="healthy">健康：有毛利空间</option>
+                  <option value="premium">高价：需强品牌/功能理由</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="reviewSignal">评论信号</label>
+                <select id="reviewSignal">
+                  <option value="unknown">未调研</option>
+                  <option value="weak">评论少/需求不清晰</option>
+                  <option value="clear-pain">差评痛点清晰</option>
+                  <option value="saturated">头部评价很强</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="trendSignal">趋势信号</label>
+                <select id="trendSignal">
+                  <option value="unknown">未调研</option>
+                  <option value="decline">下降/过时</option>
+                  <option value="stable">稳定常青</option>
+                  <option value="rising">增长/内容热</option>
+                </select>
+              </div>
+              <div class="field-group wide-field">
+                <label for="painPointEvidence">差评痛点/机会摘录</label>
+                <textarea id="painPointEvidence" rows="4" placeholder="记录竞品差评、未满足需求、价格带或主图风格机会。"></textarea>
+              </div>
+            </div>
+            <button class="primary-action market-action" id="autoMarketBtn" type="button">
+              生成调研框架并纳入评审
+            </button>
+            <p class="auto-review-note" id="marketReviewNote">当前为本地证据层：可先手动录入调研结果，后续接入实时搜索接口。</p>
+          </section>
+
+          <details class="tool-card scoring-card" aria-label="评分因子">
+            <summary class="section-heading">
+              <div>
+                <p class="eyebrow">Diagnostic</p>
+                <h2>评分因子细节</h2>
+              </div>
+              <span class="section-note">自动生成 · 可手动微调</span>
+            </summary>
+            <div class="slider-list" id="sliderList"></div>
+          </details>
+
+          <fieldset class="tool-card checks">
+            <legend>
+              <span class="eyebrow">Evidence</span>
+              验证证据
+            </legend>
+            <label><input type="checkbox" id="evidenceTrend" checked /> 有趋势或人群增长信号</label>
+            <label><input type="checkbox" id="evidenceReviews" /> 已收集竞品差评痛点</label>
+            <label><input type="checkbox" id="evidenceSupplier" /> 已确认供应链可打样</label>
+            <label><input type="checkbox" id="evidenceMargin" /> 已估算毛利和履约成本</label>
+            <label><input type="checkbox" id="evidenceAssets" /> 已上传设计图/文件</label>
+          </fieldset>
+        </aside>
+
+        <section class="result-panel" aria-label="新品评审结果">
+          <section class="final-verdict" aria-label="综合评价">
+            <div>
+              <p class="eyebrow">Overall Verdict</p>
+              <h2>综合评价</h2>
+              <p id="finalSummary" class="final-summary">完成外观预审、市场调研和商业成功率评审后，系统会给出总评分和产品落地建议。</p>
+            </div>
+            <div class="final-score-box">
+              <output id="finalScore" class="final-score">--</output>
+              <span id="finalBadge" class="final-badge">待评审</span>
+            </div>
+            <ul class="final-actions" id="finalActions"></ul>
+          </section>
+
+          <section class="market-result" aria-label="市场调研摘要">
+            <div class="result-section-heading">
+              <div>
+                <p class="eyebrow">Market Research</p>
+                <h2>市场调研摘要</h2>
+              </div>
+            </div>
+            <div class="market-metrics" id="marketMetrics"></div>
+            <ul class="market-list" id="marketInsights"></ul>
+          </section>
+
+          <section class="appearance-result" aria-label="外观设计预审结果">
+            <div class="appearance-summary">
+              <div>
+                <p class="eyebrow">Appearance Review</p>
+                <h2>外观设计预审</h2>
+                <p id="appearanceSummary" class="appearance-copy">上传图片并填写外观设计意图后，可先判断方案成熟度，再进入商业成功率评审。</p>
+              </div>
+              <div class="appearance-score-visual" id="appearanceDial">
+                <output id="appearanceScore" class="appearance-score">--</output>
+                <span id="appearanceBadge" class="appearance-badge">待评审</span>
+              </div>
+            </div>
+            <div class="appearance-metrics" id="appearanceMetrics"></div>
+            <ul class="appearance-list" id="appearanceInsights"></ul>
+          </section>
+
+          <section class="score-hero">
+            <div class="score-copy">
+              <p class="eyebrow">Decision Output</p>
+              <h2>立项判断</h2>
+              <p id="scoreSummary" class="score-summary"></p>
+            </div>
+            <div class="score-visual" id="scoreDial">
+              <output id="successScore" class="success-score">0%</output>
+              <span id="decisionBadge" class="decision-badge">待评估</span>
+            </div>
+          </section>
+
+          <section class="metric-section" aria-label="分项得分">
+            <div class="result-section-heading">
+              <div>
+                <p class="eyebrow">Score Breakdown</p>
+                <h2>分项得分</h2>
+              </div>
+            </div>
+            <div class="metrics-grid" id="metricsGrid"></div>
+          </section>
+
+          <section class="analysis-area">
+            <div class="analysis-block">
+              <div class="analysis-head">
+                <p class="eyebrow">Insight</p>
+                <h2>关键判断</h2>
+              </div>
+              <ul id="insightList"></ul>
+            </div>
+            <div class="analysis-block">
+              <div class="analysis-head">
+                <p class="eyebrow">Gate</p>
+                <h2>风险门槛</h2>
+              </div>
+              <ul id="riskList"></ul>
+            </div>
+            <div class="analysis-block">
+              <div class="analysis-head">
+                <p class="eyebrow">Action</p>
+                <h2>下一步验证</h2>
+              </div>
+              <ol id="nextSteps"></ol>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="./script.js?v=workflow-skill-1"></script>
+  </body>
+</html>
