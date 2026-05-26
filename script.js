@@ -108,9 +108,25 @@ const dropZone = document.querySelector("#dropZone");
 const assetPreview = document.querySelector("#assetPreview");
 const uploadStats = document.querySelector("#uploadStats");
 const clearFilesBtn = document.querySelector("#clearFilesBtn");
+const gateIpEl = document.querySelector("#gateIp");
+const gateComplianceEl = document.querySelector("#gateCompliance");
+const gateLogisticsEl = document.querySelector("#gateLogistics");
+const gateSupportEl = document.querySelector("#gateSupport");
+const salePriceEl = document.querySelector("#salePrice");
+const factoryCostEl = document.querySelector("#factoryCost");
+const packagingCostEl = document.querySelector("#packagingCost");
+const shippingCostEl = document.querySelector("#shippingCost");
+const platformFeeRateEl = document.querySelector("#platformFeeRate");
+const adRateEl = document.querySelector("#adRate");
+const returnRateEl = document.querySelector("#returnRate");
+const competitorEvidenceEl = document.querySelector("#competitorEvidence");
+const reviewPasteEl = document.querySelector("#reviewPaste");
+const runSelectionBtn = document.querySelector("#runSelectionBtn");
+const selectionReviewNote = document.querySelector("#selectionReviewNote");
 const uploadedAssets = [];
 let latestAppearanceResult = null;
 let latestMarketResult = null;
+let latestSelectionResult = null;
 
 const appearanceDimensions = [
   { id: "clarity", label: "识别清晰度", caption: "三秒内能否看懂品类、方向和使用方式" },
@@ -283,15 +299,271 @@ function finalDecision(score) {
   return { text: "暂缓推进", className: "danger" };
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function numericValue(el, fallback = 0) {
+  const value = Number.parseFloat(el.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function money(value) {
+  return `$${value.toFixed(2)}`;
+}
+
+function percent(value) {
+  return `${Math.round(value)}%`;
+}
+
+function gateReview() {
+  const gates = [
+    {
+      key: "ip",
+      label: "侵权/同款",
+      value: gateIpEl.value,
+      watch: "需要做外观专利、商标词和同款图检索，确认不是换壳同款。",
+      block: "疑似侵权或强同款，建议先停止推进，改结构或改品类。",
+    },
+    {
+      key: "compliance",
+      label: "合规认证",
+      value: gateComplianceEl.value,
+      watch: "需要确认材料、接触安全或平台认证要求，再决定是否打样。",
+      block: "涉及医疗、儿童、射频、电池或隐私定位等高合规风险，普通跨境小品不建议继续。",
+    },
+    {
+      key: "logistics",
+      label: "物流履约",
+      value: gateLogisticsEl.value,
+      watch: "包装体积、抗压和破损率需要先验证，避免履约成本吞掉利润。",
+      block: "物流属性不适合小货跨境，建议改成配件化、折叠化或无液体版本。",
+    },
+    {
+      key: "support",
+      label: "售后负担",
+      value: gateSupportEl.value,
+      watch: "需要降低安装、尺寸适配和说明书压力，减少客服成本。",
+      block: "售后复杂度过高，容易形成退货和差评，建议重构体验。",
+    },
+  ];
+  const blocks = gates.filter((item) => item.value === "block");
+  const watches = gates.filter((item) => item.value === "watch");
+  const score = clamp(Math.round(92 - watches.length * 11 - blocks.length * 28), 8, 94);
+  const insights = [
+    ...blocks.map((item) => `${item.label}硬性风险：${item.block}`),
+    ...watches.map((item) => `${item.label}观察项：${item.watch}`),
+  ];
+  if (!insights.length) insights.push("硬性闸门暂未发现明显阻断项，可以继续进入利润、竞品和外观验证。");
+  return { score, blocks, watches, insights };
+}
+
+function profitReview() {
+  const salePrice = numericValue(salePriceEl);
+  const factoryCost = numericValue(factoryCostEl);
+  const packagingCost = numericValue(packagingCostEl);
+  const shippingCost = numericValue(shippingCostEl);
+  const platformFeeRate = numericValue(platformFeeRateEl);
+  const adRateValue = numericValue(adRateEl);
+  const returnRateValue = numericValue(returnRateEl);
+
+  if (salePrice <= 0) {
+    return {
+      score: 28,
+      salePrice,
+      landedCost: 0,
+      netProfit: 0,
+      netMargin: 0,
+      breakEvenAdRate: 0,
+      insights: ["目标售价缺失，无法判断利润安全线。先补售价、成本和履约费用。"],
+    };
+  }
+
+  const landedCost = factoryCost + packagingCost + shippingCost;
+  const platformFee = salePrice * (platformFeeRate / 100);
+  const adCost = salePrice * (adRateValue / 100);
+  const returnLoss = salePrice * (returnRateValue / 100);
+  const netProfit = salePrice - landedCost - platformFee - adCost - returnLoss;
+  const netMargin = netProfit / salePrice;
+  const breakEvenAdRate = ((salePrice - landedCost - platformFee - returnLoss) / salePrice) * 100;
+  let score = 34;
+  if (netMargin >= 0.28) score = 88;
+  else if (netMargin >= 0.2) score = 78;
+  else if (netMargin >= 0.12) score = 64;
+  else if (netMargin >= 0.06) score = 50;
+  else if (netMargin >= 0) score = 40;
+
+  const insights = [];
+  if (netMargin < 0) insights.push("当前净利润为负，不建议直接打样或投放，先提高客单价或重构成本。");
+  else if (netMargin < 0.12) insights.push("净利率偏薄，广告、退货或平台费稍有波动就可能亏损。");
+  else if (netMargin >= 0.25) insights.push("利润安全线较好，具备小预算投放和页面测试空间。");
+  if (breakEvenAdRate < adRateValue + 5) insights.push("广告承受空间偏紧，建议先做自然流量或内容验证，再扩大投放。");
+
+  return { score, salePrice, landedCost, netProfit, netMargin, breakEvenAdRate, insights };
+}
+
+function competitorEvidenceReview() {
+  const text = `${competitorEvidenceEl.value}\n${painPointEvidenceEl.value}`.trim().toLowerCase();
+  const lines = competitorEvidenceEl.value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const hasRedOcean = textHas(text, ["红海", "价格战", "同款", "低价", "同质化", "saturated", "copycat", "price war"]);
+  const hasGap = textHas(text, ["差评", "痛点", "抱怨", "不满意", "缺口", "改进", "complaint", "negative", "bad review"]);
+  const hasPrice = /[$￥]?\s*\d+(\.\d+)?/.test(text);
+  let score = 38;
+  if (lines.length >= 8) score = 84;
+  else if (lines.length >= 5) score = 74;
+  else if (lines.length >= 3) score = 62;
+  else if (lines.length >= 1) score = 50;
+  if (hasGap) score += 8;
+  if (hasPrice) score += 4;
+  if (hasRedOcean) score -= 14;
+  score = clamp(Math.round(score), 20, 92);
+
+  const insights = [];
+  if (lines.length < 3) insights.push("竞品证据不足，建议至少录入 3-5 个直接竞品，包含售价、评分、评论量和差评。");
+  if (hasRedOcean) insights.push("证据中出现红海或价格战信号，需要切更窄人群、场景或结构差异。");
+  if (hasGap) insights.push("已出现可利用的差评缺口，适合转化成结构卖点、主图对比和外观细节。");
+  if (!hasGap && lines.length >= 3) insights.push("竞品数量已有基础，但还需要补充差评原文，否则难以判断真实购买阻力。");
+
+  return { score, count: lines.length, hasRedOcean, hasGap, hasPrice, insights };
+}
+
+function painReview() {
+  const text = `${reviewPasteEl.value}\n${painPointEvidenceEl.value}`.trim().toLowerCase();
+  const buckets = [
+    { name: "质量耐用", words: ["质量", "坏", "断", "裂", "掉", "耐用", "broken", "durable", "quality"] },
+    { name: "尺寸适配", words: ["尺寸", "太小", "太大", "不合适", "fit", "size"] },
+    { name: "易用操作", words: ["难用", "不好开", "安装", "说明", "误触", "use", "install", "confusing"] },
+    { name: "包装物流", words: ["包装", "破损", "物流", "运输", "shipping", "package", "damaged"] },
+    { name: "外观颜值", words: ["丑", "廉价", "颜色", "材质", "外观", "cheap", "appearance", "color"] },
+    { name: "场景不匹配", words: ["收纳", "携带", "旅行", "露营", "场景", "storage", "travel", "camping"] },
+  ];
+  const hits = buckets.filter((bucket) => textHas(text, bucket.words));
+  let score = 42;
+  if (hits.length >= 4) score = 84;
+  else if (hits.length >= 3) score = 76;
+  else if (hits.length >= 1) score = 62;
+  const insights = [];
+  if (!text) insights.push("还没有差评原文，建议粘贴 20-50 条竞品差评，让设计机会更接近真实需求。");
+  else if (hits.length) insights.push(`差评痛点已覆盖：${hits.map((item) => item.name).join("、")}。`);
+  else insights.push("已粘贴评论，但痛点类别不够清晰，建议保留用户原话并标注高频词。");
+  return { score, hits, insights };
+}
+
+function selectionDecision(score, hardBlock) {
+  if (hardBlock || score < 55) return { text: "暂缓选品", className: "danger" };
+  if (score >= 76) return { text: "可进验证", className: "good" };
+  return { text: "观察推进", className: "warn" };
+}
+
+function selectionReviewFromInputs() {
+  const gate = gateReview();
+  const profit = profitReview();
+  const competitor = competitorEvidenceReview();
+  const pain = painReview();
+  const hardBlock = gate.blocks.length > 0;
+  let score = Math.round(gate.score * 0.3 + profit.score * 0.35 + competitor.score * 0.18 + pain.score * 0.17);
+  if (hardBlock) score = Math.min(score, 56);
+  if (profit.netProfit < 0) score = Math.min(score, 54);
+  score = clamp(score, 8, 94);
+
+  const insights = [
+    ...gate.insights,
+    ...profit.insights,
+    ...competitor.insights,
+    ...pain.insights,
+  ];
+
+  return { score, hardBlock, gate, profit, competitor, pain, insights };
+}
+
+function renderSelection(result = null) {
+  const scoreEl = document.querySelector("#selectionScore");
+  const badge = document.querySelector("#selectionBadge");
+  const summary = document.querySelector("#selectionSummary");
+  const metrics = document.querySelector("#selectionMetrics");
+  const insights = document.querySelector("#selectionInsights");
+
+  if (!result) {
+    scoreEl.value = "--";
+    badge.textContent = "待评估";
+    badge.className = "selection-badge";
+    summary.textContent = "补齐硬性闸门、利润结构、竞品证据和差评痛点后，系统会判断这个品是否值得进入打样、开模或投放测试。";
+    metrics.innerHTML = ["硬性闸门", "净利润", "竞品证据", "差评痛点"]
+      .map((item) => `<div class="selection-metric"><span>${item}</span><strong>待评估</strong><p>运行选品安全线后生成。</p></div>`)
+      .join("");
+    insights.innerHTML = "<li>建议先填售价、成本、履约、3-5 个竞品和若干差评原文，再运行评估。</li>";
+    return;
+  }
+
+  const decision = selectionDecision(result.score, result.hardBlock);
+  scoreEl.value = `${result.score}`;
+  badge.textContent = decision.text;
+  badge.className = `selection-badge ${decision.className}`;
+  summary.textContent =
+    result.score >= 76
+      ? "当前选品在硬性风险、利润结构和需求证据上具备继续验证的基础，建议进入小样、主图和低预算投放测试。"
+      : result.score >= 55
+        ? "当前选品还有机会，但需要先补强利润、竞品或差评证据，不建议直接开模或大批量备货。"
+        : "当前选品安全线偏弱，建议先重构品类切口、成本结构或风险承诺，再决定是否继续。";
+  metrics.innerHTML = [
+    {
+      label: "硬性闸门",
+      value: result.hardBlock ? "有阻断" : result.gate.watches.length ? "需观察" : "通过",
+      note: `${result.gate.blocks.length} 个阻断，${result.gate.watches.length} 个观察项`,
+    },
+    {
+      label: "净利润",
+      value: money(result.profit.netProfit),
+      note: `净利率 ${percent(result.profit.netMargin * 100)}，广告安全线 ${percent(result.profit.breakEvenAdRate)}`,
+    },
+    {
+      label: "竞品证据",
+      value: `${result.competitor.count} 条`,
+      note: result.competitor.hasGap ? "已发现差评缺口" : "需补痛点证据",
+    },
+    {
+      label: "差评痛点",
+      value: `${result.pain.hits.length} 类`,
+      note: result.pain.hits.length ? result.pain.hits.map((item) => item.name).join("、") : "待粘贴原文",
+    },
+  ]
+    .map(
+      (item) =>
+        `<div class="selection-metric"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong><p>${escapeHtml(item.note)}</p></div>`,
+    )
+    .join("");
+  insights.innerHTML = result.insights.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+}
+
+function runSelectionReview() {
+  latestSelectionResult = selectionReviewFromInputs();
+  renderSelection(latestSelectionResult);
+  selectionReviewNote.textContent = `已生成选品安全线：${latestSelectionResult.score} 分，并已纳入综合评价。`;
+  document.querySelector("#evidenceReviews").checked =
+    document.querySelector("#evidenceReviews").checked || latestSelectionResult.competitor.hasGap || latestSelectionResult.pain.hits.length > 0;
+  document.querySelector("#evidenceMargin").checked =
+    document.querySelector("#evidenceMargin").checked || latestSelectionResult.profit.netProfit > 0;
+  render();
+}
+
 function renderFinal(commercialResult = null) {
   const scoreEl = document.querySelector("#finalScore");
   const badge = document.querySelector("#finalBadge");
   const summary = document.querySelector("#finalSummary");
   const actions = document.querySelector("#finalActions");
   const parts = [];
-  if (latestAppearanceResult) parts.push({ score: latestAppearanceResult.score, weight: 0.28 });
-  if (latestMarketResult) parts.push({ score: latestMarketResult.score, weight: 0.32 });
-  if (commercialResult) parts.push({ score: commercialResult.score, weight: 0.4 });
+  if (latestSelectionResult) parts.push({ score: latestSelectionResult.score, weight: 0.34 });
+  if (latestAppearanceResult) parts.push({ score: latestAppearanceResult.score, weight: latestSelectionResult ? 0.2 : 0.28 });
+  if (latestMarketResult) parts.push({ score: latestMarketResult.score, weight: latestSelectionResult ? 0.22 : 0.32 });
+  if (commercialResult) parts.push({ score: commercialResult.score, weight: latestSelectionResult ? 0.24 : 0.4 });
 
   if (!parts.length) {
     scoreEl.value = "--";
@@ -303,7 +575,9 @@ function renderFinal(commercialResult = null) {
   }
 
   const weightSum = parts.reduce((sum, item) => sum + item.weight, 0);
-  const score = Math.round(parts.reduce((sum, item) => sum + item.score * item.weight, 0) / weightSum);
+  let score = Math.round(parts.reduce((sum, item) => sum + item.score * item.weight, 0) / weightSum);
+  if (latestSelectionResult?.hardBlock) score = Math.min(score, 56);
+  if (latestSelectionResult?.profit.netProfit < 0) score = Math.min(score, 54);
   const d = finalDecision(score);
   scoreEl.value = `${score}`;
   badge.textContent = d.text;
@@ -316,6 +590,10 @@ function renderFinal(commercialResult = null) {
         : "当前方案综合风险偏高，建议先重构定位、外观或产品复杂度，不宜直接推进打样或上市。";
 
   const next = [];
+  if (!latestSelectionResult) next.push("补齐选品安全线：硬性闸门、售价成本、竞品证据和差评原文会显著影响选品成功率。");
+  if (latestSelectionResult?.hardBlock) next.push("存在硬性阻断项：先处理侵权、合规、物流或售后风险，不建议直接打样。");
+  if (latestSelectionResult && latestSelectionResult.profit.netMargin < 0.12) next.push("利润安全线偏薄：优先提高客单价、降低履约成本或减少广告依赖。");
+  if (latestSelectionResult && latestSelectionResult.competitor.count < 3) next.push("竞品证据不足：至少录入 3-5 个直接竞品后再做选品结论。");
   if (!latestMarketResult) next.push("补齐市场调研：关键词、竞品密度、价格带、差评痛点和趋势信号。");
   if (!latestAppearanceResult) next.push("先完成外观预审：上传主视角、使用场景和 CMF/细节图。");
   if (commercialResult && commercialResult.score < 60) next.push("商业可行性偏弱：优先降低合规、制造、售后或物流风险。");
@@ -759,11 +1037,13 @@ function runAutoReview() {
 
 function runFullWorkflow() {
   runMarketReview();
+  runSelectionReview();
   runAppearanceReview();
   runAutoReview();
   autoReviewNote.textContent = "完整工作流已运行：市场调研、外观预审、商业成功率和综合结论已同步更新。";
   marketReviewNote.textContent = "市场调研已纳入总评；请把平台搜索结果、竞品差评和价格带继续补进来复核。";
   appearanceReviewNote.textContent = "外观预审已纳入总评；建议用主视角、使用场景、CMF/细节图继续校准。";
+  selectionReviewNote.textContent = "选品安全线已纳入总评；建议继续补充真实竞品和差评原文，提高判断可靠度。";
 }
 
 function collectAppearanceText() {
@@ -963,6 +1243,7 @@ function applyPreset(key) {
   const preset = presets[key] || presets.custom;
   latestAppearanceResult = null;
   latestMarketResult = null;
+  latestSelectionResult = null;
   document.querySelector("#productName").value = preset.productName;
   productBriefEl.value = preset.productBrief || "";
   document.querySelector("#category").value = preset.category;
@@ -981,8 +1262,22 @@ function applyPreset(key) {
   reviewSignalEl.value = "unknown";
   trendSignalEl.value = "unknown";
   painPointEvidenceEl.value = "";
+  gateIpEl.value = "clear";
+  gateComplianceEl.value = "clear";
+  gateLogisticsEl.value = "clear";
+  gateSupportEl.value = "clear";
+  salePriceEl.value = "19.99";
+  factoryCostEl.value = "3.20";
+  packagingCostEl.value = "0.60";
+  shippingCostEl.value = "3.50";
+  platformFeeRateEl.value = "15";
+  adRateEl.value = "18";
+  returnRateEl.value = "5";
+  competitorEvidenceEl.value = "";
+  reviewPasteEl.value = "";
   renderAppearance();
   renderMarket();
+  renderSelection();
   render();
 }
 
@@ -991,11 +1286,41 @@ applyPreset("custom");
 renderAssets();
 renderAppearance();
 renderMarket();
+renderSelection();
 renderFinal();
 
 document.querySelectorAll("input, select").forEach((el) => {
   el.addEventListener("input", render);
   el.addEventListener("change", render);
+});
+
+[
+  gateIpEl,
+  gateComplianceEl,
+  gateLogisticsEl,
+  gateSupportEl,
+  salePriceEl,
+  factoryCostEl,
+  packagingCostEl,
+  shippingCostEl,
+  platformFeeRateEl,
+  adRateEl,
+  returnRateEl,
+  competitorEvidenceEl,
+  reviewPasteEl,
+].forEach((el) => {
+  const updateSelectionDraft = () => {
+    if (latestSelectionResult) {
+      latestSelectionResult = selectionReviewFromInputs();
+      renderSelection(latestSelectionResult);
+    } else {
+      renderSelection();
+    }
+    selectionReviewNote.textContent = "选品信息已更新，点击评估选品安全线可刷新判断。";
+    render();
+  };
+  el.addEventListener("input", updateSelectionDraft);
+  el.addEventListener("change", updateSelectionDraft);
 });
 
 productBriefEl.addEventListener("input", () => {
@@ -1005,6 +1330,7 @@ productBriefEl.addEventListener("input", () => {
 runWorkflowBtn.addEventListener("click", runFullWorkflow);
 autoReviewBtn.addEventListener("click", runAutoReview);
 autoMarketBtn.addEventListener("click", runMarketReview);
+runSelectionBtn.addEventListener("click", runSelectionReview);
 copyKeywordsBtn.addEventListener("click", copyMarketKeywords);
 openResearchTabsBtn.addEventListener("click", openCoreResearchTabs);
 marketKeywordsEl.addEventListener("input", () => renderResearchLinks());

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>新品成功率评审工具</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=selection-success-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -244,6 +244,109 @@
             <p class="auto-review-note" id="marketReviewNote">当前为本地证据层：可先手动录入调研结果，后续接入实时搜索接口。</p>
           </section>
 
+          <section class="tool-card gate-card" aria-label="选品风险闸门">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Selection Gate</p>
+                <h2>硬性淘汰门槛</h2>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-group">
+                <label for="gateIp">侵权/同款风险</label>
+                <select id="gateIp">
+                  <option value="clear">低：无明显商标/专利/同款风险</option>
+                  <option value="watch">中：需复核外观专利或品牌词</option>
+                  <option value="block">高：疑似侵权或强同款</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="gateCompliance">合规风险</label>
+                <select id="gateCompliance">
+                  <option value="clear">低：普通非电子/非医疗配件</option>
+                  <option value="watch">中：材料、食品接触或认证需确认</option>
+                  <option value="block">高：医疗、儿童、射频、电池或隐私定位</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="gateLogistics">物流风险</label>
+                <select id="gateLogistics">
+                  <option value="clear">低：小、轻、耐摔、非液体</option>
+                  <option value="watch">中：易压损或包装体积需优化</option>
+                  <option value="block">高：大件、液体、玻璃、危险品或重货</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="gateSupport">售后风险</label>
+                <select id="gateSupport">
+                  <option value="clear">低：无需安装/联网/复杂教学</option>
+                  <option value="watch">中：有尺寸适配或安装说明压力</option>
+                  <option value="block">高：联网绑定、误报、维修或高退货风险</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-card profit-card" aria-label="利润测算">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Profit Model</p>
+                <h2>利润安全线</h2>
+              </div>
+            </div>
+            <div class="field-grid numeric-grid">
+              <div class="field-group">
+                <label for="salePrice">目标售价 USD</label>
+                <input id="salePrice" type="number" min="0" step="0.01" value="19.99" />
+              </div>
+              <div class="field-group">
+                <label for="factoryCost">出厂成本</label>
+                <input id="factoryCost" type="number" min="0" step="0.01" value="3.20" />
+              </div>
+              <div class="field-group">
+                <label for="packagingCost">包装成本</label>
+                <input id="packagingCost" type="number" min="0" step="0.01" value="0.60" />
+              </div>
+              <div class="field-group">
+                <label for="shippingCost">头程/履约</label>
+                <input id="shippingCost" type="number" min="0" step="0.01" value="3.50" />
+              </div>
+              <div class="field-group">
+                <label for="platformFeeRate">平台费 %</label>
+                <input id="platformFeeRate" type="number" min="0" step="0.1" value="15" />
+              </div>
+              <div class="field-group">
+                <label for="adRate">广告预留 %</label>
+                <input id="adRate" type="number" min="0" step="0.1" value="18" />
+              </div>
+              <div class="field-group">
+                <label for="returnRate">退货损耗 %</label>
+                <input id="returnRate" type="number" min="0" step="0.1" value="5" />
+              </div>
+            </div>
+          </section>
+
+          <section class="tool-card evidence-card" aria-label="竞品与差评证据">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Evidence Board</p>
+                <h2>竞品与差评证据</h2>
+              </div>
+            </div>
+            <div class="field-group compact">
+              <label for="competitorEvidence">竞品证据表</label>
+              <textarea id="competitorEvidence" rows="5" placeholder="每行一个竞品：名称 | 售价 | 评分 | 评论数 | 主要差评/卖点"></textarea>
+            </div>
+            <div class="field-group compact">
+              <label for="reviewPaste">粘贴竞品差评</label>
+              <textarea id="reviewPaste" rows="5" placeholder="粘贴 Amazon/TikTok/Etsy/社媒评论。系统会归类质量、尺寸、易用性、包装、颜值、场景等痛点。"></textarea>
+            </div>
+            <button class="primary-action selection-action" id="runSelectionBtn" type="button">
+              评估选品安全线
+            </button>
+            <p class="auto-review-note" id="selectionReviewNote">用于判断这个品是否值得继续打样、开模或投放测试。</p>
+          </section>
+
           <details class="tool-card scoring-card" aria-label="评分因子">
             <summary class="section-heading">
               <div>
@@ -280,6 +383,22 @@
               <span id="finalBadge" class="final-badge">待评审</span>
             </div>
             <ul class="final-actions" id="finalActions"></ul>
+          </section>
+
+          <section class="selection-result" aria-label="选品安全线判断">
+            <div class="selection-summary">
+              <div>
+                <p class="eyebrow">Selection Safety</p>
+                <h2>选品安全线</h2>
+                <p id="selectionSummary" class="selection-copy">补齐硬性闸门、利润结构、竞品证据和差评痛点后，系统会判断这个品是否值得进入打样、开模或投放测试。</p>
+              </div>
+              <div class="selection-score-box">
+                <output id="selectionScore" class="selection-score">--</output>
+                <span id="selectionBadge" class="selection-badge">待评估</span>
+              </div>
+            </div>
+            <div class="selection-metrics" id="selectionMetrics"></div>
+            <ul class="selection-list" id="selectionInsights"></ul>
           </section>
 
           <section class="market-result" aria-label="市场调研摘要">
@@ -358,6 +477,6 @@
       </section>
     </main>
 
-    <script src="./script.js?v=semi-research-1"></script>
+    <script src="./script.js?v=selection-success-1"></script>
   </body>
 </html>
