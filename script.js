@@ -108,6 +108,9 @@ const dropZone = document.querySelector("#dropZone");
 const assetPreview = document.querySelector("#assetPreview");
 const uploadStats = document.querySelector("#uploadStats");
 const clearFilesBtn = document.querySelector("#clearFilesBtn");
+const autoImageFillToggle = document.querySelector("#autoImageFillToggle");
+const autoImageFillBtn = document.querySelector("#autoImageFillBtn");
+const imageAutofillNote = document.querySelector("#imageAutofillNote");
 const gateIpEl = document.querySelector("#gateIp");
 const gateComplianceEl = document.querySelector("#gateCompliance");
 const gateLogisticsEl = document.querySelector("#gateLogistics");
@@ -767,6 +770,222 @@ function fileKind(file) {
   return ext.slice(0, 5);
 }
 
+function imageMetaFromAsset(asset) {
+  if (!asset.previewUrl || !asset.file.type.startsWith("image/")) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      let tone = "neutral";
+      try {
+        const canvas = document.createElement("canvas");
+        const size = 24;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, size, size);
+        const data = context.getImageData(0, 0, size, size).data;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let count = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          if (data[index + 3] < 30) continue;
+          r += data[index];
+          g += data[index + 1];
+          b += data[index + 2];
+          count += 1;
+        }
+        if (count) {
+          r /= count;
+          g /= count;
+          b /= count;
+          const brightness = (r + g + b) / 3;
+          const contrast = Math.max(r, g, b) - Math.min(r, g, b);
+          if (brightness < 80) tone = "dark";
+          else if (brightness > 210 && contrast < 34) tone = "light";
+          else if (contrast > 80) tone = "colorful";
+          else if (g > r + 18 && g > b + 12) tone = "natural";
+          else tone = "balanced";
+        }
+      } catch (error) {
+        tone = "neutral";
+      }
+      resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        ratio: image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1,
+        tone,
+      });
+    };
+    image.onerror = () => resolve(null);
+    image.src = asset.previewUrl;
+  });
+}
+
+async function visualAssetSummary() {
+  const imageAssets = uploadedAssets.filter((item) => item.file.type.startsWith("image/"));
+  const metas = (await Promise.all(imageAssets.map(imageMetaFromAsset))).filter(Boolean);
+  const toneCounts = metas.reduce((acc, meta) => {
+    acc[meta.tone] = (acc[meta.tone] || 0) + 1;
+    return acc;
+  }, {});
+  const dominantTone = Object.entries(toneCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
+  const hasSquare = metas.some((meta) => meta.ratio > 0.82 && meta.ratio < 1.22);
+  const hasScene = metas.some((meta) => meta.ratio > 1.35 || meta.ratio < 0.72);
+  return { imageCount: imageAssets.length, fileCount: uploadedAssets.length, metas, dominantTone, hasSquare, hasScene };
+}
+
+function fileKeywordText() {
+  return uploadedAssets
+    .map((item) => item.file.name.replace(/\.[^.]+$/, ""))
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchAny(text, words) {
+  return words.some((word) => text.includes(word));
+}
+
+function imageProductInference(summary) {
+  const text = fileKeywordText();
+  const currentCategory = document.querySelector("#category").value;
+  const rules = [
+    {
+      category: "pet",
+      words: ["pet", "dog", "cat", "puppy", "leash", "bowl", "宠物", "狗", "猫", "牵引", "饮水"],
+      name: "宠物出行便携套件",
+      user: "城市养宠人群、短途出行用户、车载和户外遛宠场景",
+      channel: "amazon",
+      object: "宠物出行配件",
+      pain: "携带、补水、收纳和防漏",
+    },
+    {
+      category: "outdoor",
+      words: ["camp", "camping", "outdoor", "hike", "bbq", "露营", "户外", "徒步", "野餐", "车露营"],
+      name: "轻量户外收纳配件",
+      user: "周末露营、车露营和轻户外用户",
+      channel: "tiktok",
+      object: "户外小配件",
+      pain: "轻量携带、快速取放、耐脏和场景搭配",
+    },
+    {
+      category: "home-appliance",
+      words: ["appliance", "dishwasher", "kitchen", "home", "countertop", "洗碗机", "厨房", "小家电", "台面", "收纳"],
+      name: "小家电周边收纳套件",
+      user: "租房、小公寓和厨房台面收纳用户",
+      channel: "amazon",
+      object: "小家电周边配件",
+      pain: "台面凌乱、管线收纳、晾干和清洁",
+    },
+    {
+      category: "electronics-accessory",
+      words: ["mic", "microphone", "camera", "creator", "phone", "headphone", "麦克风", "相机", "手机", "直播", "创作者", "上镜"],
+      name: "创作者设备美化配件",
+      user: "短视频创作者、直播卖家、访谈拍摄和桌面内容用户",
+      channel: "tiktok",
+      object: "电子设备周边配件",
+      pain: "上镜突兀、收纳混乱、颜色不统一和场景搭配",
+    },
+    {
+      category: "senior-travel",
+      words: ["senior", "elder", "sos", "nfc", "travel", "药盒", "银发", "老人", "适老", "旅行", "防丢"],
+      name: "银发旅行安全套装",
+      user: "银发旅行者、子女购买人、旅行团和景区服务场景",
+      channel: "amazon",
+      object: "旅行安全配件",
+      pain: "防丢、联系、证件收纳和体面安全感",
+    },
+    {
+      category: "soft-goods",
+      words: ["bag", "pouch", "case", "organizer", "storage", "包", "袋", "盒", "收纳", "保护套"],
+      name: "便携收纳保护套件",
+      user: "通勤、旅行和多设备携带用户",
+      channel: "amazon",
+      object: "收纳保护配件",
+      pain: "分类收纳、防刮、防丢和快速取放",
+    },
+  ];
+  const matched = rules.find((rule) => matchAny(text, rule.words)) || rules.find((rule) => rule.category === currentCategory) || rules[3];
+  const toneText = {
+    dark: "深色克制",
+    light: "浅色简洁",
+    colorful: "高识别度配色",
+    natural: "自然户外色调",
+    balanced: "均衡中性色调",
+    neutral: "中性色调",
+  }[summary.dominantTone];
+  const stage = summary.imageCount >= 3 ? "render" : summary.imageCount >= 1 ? "concept" : "concept";
+  const styleTarget =
+    summary.dominantTone === "dark" || summary.dominantTone === "light"
+      ? "premium"
+      : matched.category === "outdoor"
+        ? "outdoor"
+        : summary.dominantTone === "colorful"
+          ? "playful"
+          : "friendly";
+  return {
+    ...matched,
+    stage,
+    styleTarget,
+    toneText,
+    evidenceText: summary.imageCount
+      ? `上传了 ${summary.imageCount} 张图片，识别到${toneText}${summary.hasScene ? "、包含场景或长图资料" : ""}${summary.hasSquare ? "、适合主图展示" : ""}。`
+      : "尚未识别到图片，仅根据文件名和当前品类生成草稿。",
+  };
+}
+
+function generatedBriefFromInference(inference) {
+  return `这是一款面向${inference.user}的${inference.object}，从上传图片资料中初步识别到${inference.toneText}、小件化和可电商展示的产品特征。建议主打${inference.pain}等具体场景问题，保持体积小、物流友好、易拍摄对比图，并优先验证竞品差评中是否存在同类痛点。`;
+}
+
+function generatedDesignIntentFromInference(inference) {
+  return `基于上传图片，建议外观方向强调${inference.toneText}、清晰正反面识别和一眼可懂的使用方式。下一轮设计应重点强化主图记忆点、握持/取放/挂扣等人机暗示，以及能支撑电商详情页对比的 CMF 和细节特征。`;
+}
+
+function applyImageInference(inference) {
+  document.querySelector("#productName").value = inference.name;
+  document.querySelector("#category").value = inference.category;
+  document.querySelector("#targetUser").value = inference.user;
+  document.querySelector("#channel").value = inference.channel;
+  designStageEl.value = inference.stage;
+  styleTargetEl.value = inference.styleTarget;
+  productBriefEl.value = generatedBriefFromInference(inference);
+  designIntentEl.value = generatedDesignIntentFromInference(inference);
+  painPointEvidenceEl.value = inference.evidenceText;
+  marketKeywordsEl.value = generateMarketKeywords();
+  renderResearchLinks();
+}
+
+async function autoFillFromAssets(source = "manual") {
+  if (!uploadedAssets.length) {
+    imageAutofillNote.textContent = "请先上传产品图片或设计文件，再生成简介草稿。";
+    showFeedbackToast("尚未上传资料", "先上传产品图片后，再让系统生成简介和评分因子。", "warn");
+    return;
+  }
+  imageAutofillNote.textContent = "正在读取图片尺寸、色调和文件线索，并生成可编辑草稿...";
+  const summary = await visualAssetSummary();
+  const inference = imageProductInference(summary);
+  applyImageInference(inference);
+  const values = autoScoreFromInputs();
+  Object.entries(values).forEach(([id, value]) => {
+    document.querySelector(`#${id}`).value = value;
+  });
+  latestMarketResult = marketResearchFromInputs();
+  latestSelectionResult = selectionReviewFromInputs();
+  latestAppearanceResult = appearanceScoreFromInputs();
+  document.querySelector("#evidenceTrend").checked = values.trend >= 4;
+  document.querySelector("#evidenceReviews").checked = true;
+  document.querySelector("#evidenceMargin").checked = latestSelectionResult.profit.netProfit > 0;
+  syncAssetEvidence();
+  renderMarket(latestMarketResult);
+  renderSelection(latestSelectionResult);
+  renderAppearance(latestAppearanceResult);
+  render();
+  imageAutofillNote.textContent = `已根据上传资料生成简介、外观意图和评分因子；你可以继续手动修改。当前为本地识别草稿，接入后端视觉模型后可升级为真 AI 识图。`;
+  const title = source === "upload" ? "已自动识别图片" : "图片识别草稿已生成";
+  showFeedbackToast(title, "产品简介、目标用户、品类和评审因子已自动填充。", toneForScore(latestSelectionResult.score));
+}
+
 function addFiles(fileList) {
   const nextFiles = Array.from(fileList);
   const beforeCount = uploadedAssets.length;
@@ -780,6 +999,7 @@ function addFiles(fileList) {
   render();
   const added = uploadedAssets.length - beforeCount;
   if (added > 0) showFeedbackToast("设计资料已加入", `新增 ${added} 个文件，外观预审和资料完整度已刷新。`, "good");
+  if (added > 0 && autoImageFillToggle?.checked) void autoFillFromAssets("upload");
 }
 
 function removeAsset(key) {
@@ -1439,6 +1659,7 @@ function applyPreset(key) {
   returnRateEl.value = "5";
   competitorEvidenceEl.value = "";
   reviewPasteEl.value = "";
+  imageAutofillNote.textContent = "上传产品图片后，系统会根据图片文件、尺寸、色调和品类规则生成可编辑草稿。";
   renderAppearance();
   renderMarket();
   renderSelection();
@@ -1500,6 +1721,7 @@ copyKeywordsBtn.addEventListener("click", copyMarketKeywords);
 openResearchTabsBtn.addEventListener("click", openCoreResearchTabs);
 marketKeywordsEl.addEventListener("input", () => renderResearchLinks());
 autoAppearanceBtn.addEventListener("click", runAppearanceReview);
+autoImageFillBtn.addEventListener("click", () => void autoFillFromAssets("manual"));
 designIntentEl.addEventListener("input", () => {
   appearanceReviewNote.textContent = "设计意图已更新，点击评审外观设计可重新生成预审。";
 });

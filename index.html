@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>新品成功率评审工具</title>
-    <link rel="stylesheet" href="./styles.css?v=dynamic-feedback-1" />
+    <link rel="stylesheet" href="./styles.css?v=image-autofill-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -69,6 +69,14 @@
               <span class="format-row">PNG / JPG / PDF / DOCX / PPTX / XLSX</span>
             </label>
             <div class="upload-stats" id="uploadStats">尚未上传资料</div>
+            <div class="image-ai-panel" aria-label="图片自动识别">
+              <label class="image-ai-toggle">
+                <input type="checkbox" id="autoImageFillToggle" checked />
+                上传后自动识别并填充简介
+              </label>
+              <button class="secondary-button image-ai-button" id="autoImageFillBtn" type="button">识别图片并生成简介</button>
+              <p class="image-ai-note" id="imageAutofillNote">上传产品图片后，系统会根据图片文件、尺寸、色调和品类规则生成可编辑草稿。</p>
+            </div>
             <div class="asset-preview" id="assetPreview"></div>
           </section>
 
@@ -523,6 +531,6 @@
       <span id="feedbackToastCopy">评审状态已刷新。</span>
     </div>
 
-    <script src="./script.js?v=dynamic-feedback-1"></script>
+    <script src="./script.js?v=image-autofill-1"></script>
   </body>
 </html>
