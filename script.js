@@ -123,10 +123,28 @@ const competitorEvidenceEl = document.querySelector("#competitorEvidence");
 const reviewPasteEl = document.querySelector("#reviewPaste");
 const runSelectionBtn = document.querySelector("#runSelectionBtn");
 const selectionReviewNote = document.querySelector("#selectionReviewNote");
+const headerStatusEl = document.querySelector("#headerStatus");
+const stripInputScoreEl = document.querySelector("#stripInputScore");
+const stripInputNoteEl = document.querySelector("#stripInputNote");
+const stripSelectionScoreEl = document.querySelector("#stripSelectionScore");
+const stripSelectionNoteEl = document.querySelector("#stripSelectionNote");
+const stripAppearanceScoreEl = document.querySelector("#stripAppearanceScore");
+const stripAppearanceNoteEl = document.querySelector("#stripAppearanceNote");
+const stripLaunchScoreEl = document.querySelector("#stripLaunchScore");
+const stripLaunchNoteEl = document.querySelector("#stripLaunchNote");
+const liveStatusEl = document.querySelector("#liveStatus");
+const readinessBarEl = document.querySelector("#readinessBar");
+const stagePillsEl = document.querySelector("#stagePills");
+const liveReadinessValueEl = document.querySelector("#liveReadinessValue");
+const decisionPulseLabelEl = document.querySelector("#decisionPulseLabel");
+const feedbackToastEl = document.querySelector("#feedbackToast");
+const feedbackToastTitleEl = document.querySelector("#feedbackToastTitle");
+const feedbackToastCopyEl = document.querySelector("#feedbackToastCopy");
 const uploadedAssets = [];
 let latestAppearanceResult = null;
 let latestMarketResult = null;
 let latestSelectionResult = null;
+let feedbackToastTimer = 0;
 
 const appearanceDimensions = [
   { id: "clarity", label: "识别清晰度", caption: "三秒内能否看懂品类、方向和使用方式" },
@@ -297,6 +315,139 @@ function finalDecision(score) {
   if (score >= 78) return { text: "优先推进", className: "good" };
   if (score >= 60) return { text: "验证后推进", className: "warn" };
   return { text: "暂缓推进", className: "danger" };
+}
+
+function toneForScore(score) {
+  if (score >= 76) return "good";
+  if (score >= 55) return "warn";
+  return "danger";
+}
+
+function setTone(element, tone) {
+  if (!element) return;
+  element.classList.remove("good", "warn", "danger");
+  if (tone) element.classList.add(tone);
+}
+
+function setText(element, value) {
+  if (element) element.textContent = value;
+}
+
+function inputCompletenessScore() {
+  const checks = [
+    productBriefEl.value.trim().length >= 36,
+    document.querySelector("#productName").value.trim().length >= 3,
+    document.querySelector("#targetUser").value.trim().length >= 6,
+    uploadedAssets.length > 0,
+    marketKeywordsEl.value.trim().length > 0,
+    competitorDensityEl.value !== "unknown",
+    priceBandEl.value !== "unknown",
+    reviewSignalEl.value !== "unknown",
+    trendSignalEl.value !== "unknown",
+    competitorEvidenceEl.value.trim().split(/\r?\n/).filter(Boolean).length >= 3,
+    reviewPasteEl.value.trim().length >= 40 || painPointEvidenceEl.value.trim().length >= 24,
+    numericValue(salePriceEl) > 0 && numericValue(factoryCostEl) >= 0,
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function marketReadinessScore() {
+  const fields = [competitorDensityEl.value, priceBandEl.value, reviewSignalEl.value, trendSignalEl.value];
+  const known = fields.filter((value) => value !== "unknown").length;
+  const evidence = painPointEvidenceEl.value.trim().length > 24 ? 1 : 0;
+  return Math.round(((known + evidence) / 5) * 100);
+}
+
+function scoreLabel(score) {
+  if (score >= 76) return "较完整";
+  if (score >= 55) return "可初评";
+  return "待补齐";
+}
+
+function renderStagePills(snapshot) {
+  const stages = [
+    { label: "输入资料", done: snapshot.inputScore >= 55, active: snapshot.inputScore < 55 },
+    { label: "市场调研", done: snapshot.marketScore >= 60, active: snapshot.inputScore >= 55 && snapshot.marketScore < 60 },
+    { label: "选品安全", done: Boolean(latestSelectionResult), active: !latestSelectionResult && snapshot.marketScore >= 40 },
+    { label: "外观预审", done: Boolean(latestAppearanceResult), active: !latestAppearanceResult && latestSelectionResult },
+    { label: "综合判断", done: snapshot.readiness >= 76, active: snapshot.readiness >= 55 && snapshot.readiness < 76 },
+  ];
+  stagePillsEl.innerHTML = stages
+    .map((stage) => `<span class="stage-pill ${stage.done ? "done" : stage.active ? "active" : ""}">${stage.label}</span>`)
+    .join("");
+}
+
+function liveStatusCopy(snapshot) {
+  if (latestSelectionResult?.hardBlock) return "存在硬性阻断项，系统已压低综合判断。建议先解决侵权、合规、物流或售后风险，再继续投入设计资源。";
+  if (latestSelectionResult && latestSelectionResult.profit.netProfit < 0) return "利润模型显示当前净利润为负。优先调整售价、成本或履约结构，再继续推进外观细化。";
+  if (snapshot.readiness >= 80) return "资料和评审链路较完整，可以进入样机、主图、定价和小预算投放验证。";
+  if (snapshot.readiness >= 60) return "当前已经可以做初步判断，但仍建议补充竞品差评、价格带和图片资料，提高前端选品成功率。";
+  return "系统正在读取你的输入，补齐产品简介、图片资料、市场证据和选品安全线后会形成更可靠的判断。";
+}
+
+function renderLiveFeedback(commercialResult = calculate()) {
+  const inputScore = inputCompletenessScore();
+  const marketScore = latestMarketResult ? latestMarketResult.score : marketReadinessScore();
+  const selectionScore = latestSelectionResult ? latestSelectionResult.score : Math.round((inputScore + marketScore) / 2);
+  const appearanceScore = latestAppearanceResult ? latestAppearanceResult.score : uploadedAssets.length ? 52 : 38;
+  const launchScore = commercialResult?.score ?? calculate().score;
+  const readiness = clamp(
+    Math.round(inputScore * 0.22 + marketScore * 0.2 + selectionScore * 0.25 + appearanceScore * 0.16 + launchScore * 0.17),
+    0,
+    100,
+  );
+  const snapshot = { inputScore, marketScore, selectionScore, appearanceScore, launchScore, readiness };
+  const tone = toneForScore(readiness);
+
+  setText(stripInputScoreEl, `${inputScore}%`);
+  setText(stripInputNoteEl, scoreLabel(inputScore));
+  setText(stripSelectionScoreEl, latestSelectionResult ? `${latestSelectionResult.score}` : "--");
+  setText(stripSelectionNoteEl, latestSelectionResult ? selectionDecision(latestSelectionResult.score, latestSelectionResult.hardBlock).text : "待评估");
+  setText(stripAppearanceScoreEl, latestAppearanceResult ? `${latestAppearanceResult.score}` : "--");
+  setText(stripAppearanceNoteEl, latestAppearanceResult ? appearanceDecision(latestAppearanceResult.score).text : "待预审");
+  setText(stripLaunchScoreEl, `${launchScore}%`);
+  setText(stripLaunchNoteEl, scoreLabel(launchScore));
+  setText(headerStatusEl, readiness >= 76 ? "可进入验证" : readiness >= 55 ? "证据待加强" : "资料待补齐");
+  setText(liveStatusEl, liveStatusCopy(snapshot));
+  setText(liveReadinessValueEl, `${readiness}%`);
+  setText(decisionPulseLabelEl, readiness >= 76 ? "准备推进" : readiness >= 55 ? "继续补证" : "先补资料");
+  if (readinessBarEl) readinessBarEl.style.width = `${readiness}%`;
+  renderStagePills(snapshot);
+
+  const cards = document.querySelectorAll(".decision-strip-card");
+  [inputScore, selectionScore, appearanceScore, launchScore].forEach((score, index) => setTone(cards[index], toneForScore(score)));
+  setTone(feedbackToastEl, tone);
+}
+
+function showFeedbackToast(title, copy, tone = "warn") {
+  if (!feedbackToastEl) return;
+  setText(feedbackToastTitleEl, title);
+  setText(feedbackToastCopyEl, copy);
+  setTone(feedbackToastEl, tone);
+  feedbackToastEl.classList.add("show");
+  window.clearTimeout(feedbackToastTimer);
+  feedbackToastTimer = window.setTimeout(() => feedbackToastEl.classList.remove("show"), 2600);
+}
+
+function playWorkflowFeedback() {
+  const steps = Array.from(document.querySelectorAll("#workflowPath span"));
+  document.body.classList.add("is-running");
+  steps.forEach((step) => step.classList.remove("is-active", "is-done"));
+  steps.forEach((step, index) => {
+    window.setTimeout(() => {
+      steps.forEach((item, itemIndex) => {
+        item.classList.toggle("is-done", itemIndex < index);
+        item.classList.toggle("is-active", itemIndex === index);
+      });
+    }, index * 180);
+  });
+  window.setTimeout(() => {
+    steps.forEach((step) => {
+      step.classList.remove("is-active");
+      step.classList.add("is-done");
+    });
+    document.body.classList.remove("is-running");
+  }, steps.length * 180 + 520);
 }
 
 function escapeHtml(value) {
@@ -552,6 +703,7 @@ function runSelectionReview() {
   document.querySelector("#evidenceMargin").checked =
     document.querySelector("#evidenceMargin").checked || latestSelectionResult.profit.netProfit > 0;
   render();
+  showFeedbackToast("选品安全线已生成", `当前选品安全线 ${latestSelectionResult.score} 分。`, toneForScore(latestSelectionResult.score));
 }
 
 function renderFinal(commercialResult = null) {
@@ -617,6 +769,7 @@ function fileKind(file) {
 
 function addFiles(fileList) {
   const nextFiles = Array.from(fileList);
+  const beforeCount = uploadedAssets.length;
   nextFiles.forEach((file) => {
     const key = `${file.name}-${file.size}-${file.lastModified}`;
     if (uploadedAssets.some((item) => item.key === key)) return;
@@ -625,6 +778,8 @@ function addFiles(fileList) {
   syncAssetEvidence();
   renderAssets();
   render();
+  const added = uploadedAssets.length - beforeCount;
+  if (added > 0) showFeedbackToast("设计资料已加入", `新增 ${added} 个文件，外观预审和资料完整度已刷新。`, "good");
 }
 
 function removeAsset(key) {
@@ -635,6 +790,7 @@ function removeAsset(key) {
   syncAssetEvidence();
   renderAssets();
   render();
+  showFeedbackToast("资料已移除", "上传资料状态已同步刷新。", "warn");
 }
 
 function clearAssets() {
@@ -646,6 +802,7 @@ function clearAssets() {
   syncAssetEvidence();
   renderAssets();
   render();
+  showFeedbackToast("资料已清空", "已清空上传资料，外观预审可靠度会下降。", "warn");
 }
 
 function syncAssetEvidence() {
@@ -890,6 +1047,7 @@ function runMarketReview() {
   renderMarket(latestMarketResult);
   marketReviewNote.textContent = `已生成 ${latestMarketResult.researchLinks.length} 个平台调研入口，证据完整度 ${latestMarketResult.completeness}/5，并已纳入成功率和总评。`;
   render();
+  showFeedbackToast("市场调研已更新", `证据完整度 ${latestMarketResult.completeness}/5，已同步到实时决策指挥台。`, toneForScore(latestMarketResult.score));
 }
 
 async function copyMarketKeywords() {
@@ -1033,9 +1191,11 @@ function runAutoReview() {
   if (scoringCard) scoringCard.open = true;
   autoReviewNote.textContent = "已根据产品简介和当前资料自动生成初评分。你仍可展开评分因子进行人工校准。";
   render();
+  showFeedbackToast("成功率已自动初评", "系统已根据简介、品类、渠道和资料完整度刷新判断。", toneForScore(calculate().score));
 }
 
 function runFullWorkflow() {
+  playWorkflowFeedback();
   runMarketReview();
   runSelectionReview();
   runAppearanceReview();
@@ -1044,6 +1204,7 @@ function runFullWorkflow() {
   marketReviewNote.textContent = "市场调研已纳入总评；请把平台搜索结果、竞品差评和价格带继续补进来复核。";
   appearanceReviewNote.textContent = "外观预审已纳入总评；建议用主视角、使用场景、CMF/细节图继续校准。";
   selectionReviewNote.textContent = "选品安全线已纳入总评；建议继续补充真实竞品和差评原文，提高判断可靠度。";
+  showFeedbackToast("完整工作流已完成", "市场、选品、外观和综合判断已同步刷新。", toneForScore(calculate().score));
 }
 
 function collectAppearanceText() {
@@ -1187,6 +1348,8 @@ function runAppearanceReview() {
   renderAppearance(result);
   appearanceReviewNote.textContent = "已完成外观预审。此评分可作为商业成功率评审之前的设计成熟度判断。";
   renderFinal(calculate());
+  renderLiveFeedback(calculate());
+  showFeedbackToast("外观预审已完成", `外观设计成熟度 ${result.score} 分。`, toneForScore(result.score));
 }
 
 function renderAssets() {
@@ -1237,6 +1400,7 @@ function render() {
   document.querySelector("#riskList").innerHTML = renderRisks().map((item) => `<li>${item}</li>`).join("");
   document.querySelector("#nextSteps").innerHTML = renderNextSteps(result).map((item) => `<li>${item}</li>`).join("");
   renderFinal(result);
+  renderLiveFeedback(result);
 }
 
 function applyPreset(key) {
@@ -1288,6 +1452,7 @@ renderAppearance();
 renderMarket();
 renderSelection();
 renderFinal();
+renderLiveFeedback(calculate());
 
 document.querySelectorAll("input, select").forEach((el) => {
   el.addEventListener("input", render);
@@ -1359,6 +1524,7 @@ presetEl.addEventListener("change", () => applyPreset(presetEl.value));
 resetBtn.addEventListener("click", () => {
   presetEl.value = "custom";
   applyPreset("custom");
+  showFeedbackToast("已重置为默认案例", "页面状态、评分因子和实时反馈已回到初始样例。", "warn");
 });
 
 window.productReviewUpload = {

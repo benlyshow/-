@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>新品成功率评审工具</title>
-    <link rel="stylesheet" href="./styles.css?v=selection-success-1" />
+    <link rel="stylesheet" href="./styles.css?v=dynamic-feedback-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -12,15 +12,39 @@
         <div>
           <p class="eyebrow">Product Decision System</p>
           <h1>新品成功率评审工具</h1>
+          <p class="header-subtitle">输入品类、简介、图片和市场证据，自动形成选品安全线、外观预审、落地判断和下一步验证建议。</p>
         </div>
         <div class="header-actions">
-          <span class="status-pill">MVP 评审版</span>
+          <span class="status-pill" id="headerStatus">实时评审中</span>
           <button class="secondary-button" id="resetBtn" type="button">
             <span class="button-icon" aria-hidden="true">↺</span>
             重置
           </button>
         </div>
       </header>
+
+      <section class="decision-strip" aria-label="实时评审状态">
+        <article class="decision-strip-card">
+          <span>输入完整度</span>
+          <strong id="stripInputScore">--</strong>
+          <p id="stripInputNote">等待输入</p>
+        </article>
+        <article class="decision-strip-card">
+          <span>选品安全</span>
+          <strong id="stripSelectionScore">--</strong>
+          <p id="stripSelectionNote">待评估</p>
+        </article>
+        <article class="decision-strip-card">
+          <span>外观成熟</span>
+          <strong id="stripAppearanceScore">--</strong>
+          <p id="stripAppearanceNote">待预审</p>
+        </article>
+        <article class="decision-strip-card">
+          <span>落地准备</span>
+          <strong id="stripLaunchScore">--</strong>
+          <p id="stripLaunchNote">待补证据</p>
+        </article>
+      </section>
 
       <section class="workspace">
         <aside class="input-panel" aria-label="新品评审输入">
@@ -67,11 +91,11 @@
               <button class="primary-action" id="runWorkflowBtn" type="button">
                 运行完整评审工作流
               </button>
-              <div class="workflow-path" aria-label="评审流程">
-                <span>市场调研</span>
-                <span>外观预审</span>
-                <span>商业评审</span>
-                <span>综合结论</span>
+              <div class="workflow-path" id="workflowPath" aria-label="评审流程">
+                <span data-step="market">市场调研</span>
+                <span data-step="selection">选品安全</span>
+                <span data-step="appearance">外观预审</span>
+                <span data-step="final">综合结论</span>
               </div>
             </div>
             <button class="secondary-button wide-secondary" id="autoReviewBtn" type="button">
@@ -372,6 +396,23 @@
         </aside>
 
         <section class="result-panel" aria-label="新品评审结果">
+          <section class="command-center" aria-label="实时决策指挥台">
+            <div>
+              <p class="eyebrow">Live Decision Board</p>
+              <h2>实时决策指挥台</h2>
+              <p id="liveStatus" class="live-status">系统正在读取你的输入，补齐产品简介、图片资料、市场证据和选品安全线后会形成更可靠的判断。</p>
+              <div class="readiness-track" aria-label="评审准备度">
+                <span id="readinessBar"></span>
+              </div>
+              <div class="stage-pills" id="stagePills" aria-label="当前完成状态"></div>
+            </div>
+            <div class="pulse-card" id="pulseCard">
+              <span>准备度</span>
+              <output id="liveReadinessValue">0%</output>
+              <strong id="decisionPulseLabel">待补资料</strong>
+            </div>
+          </section>
+
           <section class="final-verdict" aria-label="综合评价">
             <div>
               <p class="eyebrow">Overall Verdict</p>
@@ -477,6 +518,11 @@
       </section>
     </main>
 
-    <script src="./script.js?v=selection-success-1"></script>
+    <div class="feedback-toast" id="feedbackToast" role="status" aria-live="polite">
+      <strong id="feedbackToastTitle">已更新</strong>
+      <span id="feedbackToastCopy">评审状态已刷新。</span>
+    </div>
+
+    <script src="./script.js?v=dynamic-feedback-1"></script>
   </body>
 </html>
